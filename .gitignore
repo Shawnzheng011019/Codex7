@@ -1,4 +1,38 @@
+# Environment variables
 .env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*
 python/.env
+python/.env.*
 
+# Data directory
 data/
+
+# Logs
+*.log
+logs/
+python/logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Node modules
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
