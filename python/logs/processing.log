@@ -5625,3 +5625,6 @@ default_branch
 2025-07-16 14:51:17 | INFO     | extractor.content_extractor:extract_repository_content:46 - Extracted 20 content items from donnemartin/system-design-primer
 2025-07-16 14:51:17 | INFO     | __main__:extract_content:161 - Extracted 20 items from donnemartin/system-design-primer (6/100)
 2025-07-16 14:51:17 | INFO     | extractor.content_extractor:extract_repository_content:28 - Extracting content from repository: vinta/awesome-python
+2025-07-16 14:51:33 | INFO     | extractor.content_extractor:extract_repository_content:46 - Extracted 21 content items from vinta/awesome-python
+2025-07-16 14:51:33 | INFO     | __main__:extract_content:161 - Extracted 21 items from vinta/awesome-python (7/100)
+2025-07-16 14:51:33 | INFO     | extractor.content_extractor:extract_repository_content:28 - Extracting content from repository: facebook/react
