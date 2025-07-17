@@ -3,7 +3,6 @@ import { MilvusQueryClient } from '../query/milvus-client.js';
 import { BM25Search, DocumentData } from './bm25-search.js';
 import { RerankService, RerankConfig } from './rerank-service.js';
 import { logger } from '../utils/logger.js';
-import { config } from '../utils/config.js';
 
 export interface HybridSearchConfig {
   // Search weights

@@ -1,4 +1,4 @@
-import { MilvusClient, DataType, MetricType } from '@milvus-io/milvus2-sdk-node';
+import { MilvusClient, MetricType } from '@zilliz/milvus2-sdk-node';
 import { SearchQuery, SearchResult, VectorMetadata } from '../types/index.js';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
@@ -8,12 +8,20 @@ export class MilvusQueryClient {
   private isConnected = false;
 
   constructor() {
-    this.client = new MilvusClient({
+    const clientConfig: any = {
       address: `${config.milvus.host}:${config.milvus.port}`,
-      username: config.milvus.user,
-      password: config.milvus.password,
       database: config.milvus.database,
-    });
+    };
+    
+    if (config.milvus.user) {
+      clientConfig.username = config.milvus.user;
+    }
+    
+    if (config.milvus.password) {
+      clientConfig.password = config.milvus.password;
+    }
+    
+    this.client = new MilvusClient(clientConfig);
   }
 
   async connect(): Promise<void> {

@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 from loguru import logger
 
-from utils.models import ContentItem, TextChunk, ContentMetadata
+from utils.models import ExtractedContent, TextChunk, ContentMetadata
 from .code_chunker import CodeChunker
 
 
@@ -54,7 +54,7 @@ class TextChunker:
             'tutorial', 'guide', 'faq', 'install', 'setup'
         }
     
-    async def chunk_content_list(self, content_list: List[ContentItem]) -> List[TextChunk]:
+    async def chunk_content_list(self, content_list: List[ExtractedContent]) -> List[TextChunk]:
         """
         Chunk a list of content items.
         
@@ -81,7 +81,7 @@ class TextChunker:
         logger.info(f"Generated {len(all_chunks)} total chunks from {len(content_list)} content items")
         return all_chunks
     
-    async def chunk_content_item(self, content_item: ContentItem) -> List[TextChunk]:
+    async def chunk_content_item(self, content_item: ExtractedContent) -> List[TextChunk]:
         """
         Chunk a single content item.
         
@@ -122,7 +122,7 @@ class TextChunker:
         # Default to doc for text files
         return 'doc'
     
-    async def _chunk_doc_content(self, content_item: ContentItem) -> List[TextChunk]:
+    async def _chunk_doc_content(self, content_item: ExtractedContent) -> List[TextChunk]:
         """
         Chunk documentation using sliding window.
         
@@ -182,7 +182,7 @@ class TextChunker:
         
         return chunks
     
-    async def _chunk_code_content(self, content_item: ContentItem) -> List[TextChunk]:
+    async def _chunk_code_content(self, content_item: ExtractedContent) -> List[TextChunk]:
         """
         Chunk code using function-level analysis.
         
@@ -234,7 +234,7 @@ class TextChunker:
         
         return chunks
     
-    async def _chunk_code_fallback(self, content_item: ContentItem) -> List[TextChunk]:
+    async def _chunk_code_fallback(self, content_item: ExtractedContent) -> List[TextChunk]:
         """
         Fallback chunking for code files that couldn't be parsed.
         
@@ -364,7 +364,7 @@ class TextChunker:
         # Simple estimation: ~4 characters per token
         return len(text) // 4
     
-    def _create_chunk(self, content_item: ContentItem, chunk_text: str, chunk_type: str,
+    def _create_chunk(self, content_item: ExtractedContent, chunk_text: str, chunk_type: str,
                      start_line: Optional[int] = None, end_line: Optional[int] = None,
                      chunk_idx: int = 0) -> TextChunk:
         """Create a text chunk from content."""
@@ -392,7 +392,7 @@ class TextChunker:
             text_hash=text_hash
         )
     
-    def _generate_chunk_id(self, content_item: ContentItem, chunk_idx: int) -> str:
+    def _generate_chunk_id(self, content_item: ExtractedContent, chunk_idx: int) -> str:
         """Generate unique chunk ID."""
         repo_name = content_item.repo.replace('/', '_')
         file_name = Path(content_item.path).name

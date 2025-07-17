@@ -35,14 +35,15 @@
     "markdown-it": "^13.0.2",
     "turndown": "^7.1.2",
     "express": "^4.18.2",
-    "@milvus-io/milvus2-sdk-node": "^2.3.5",
+    "@zilliz/milvus2-sdk-node": "^2.5.12",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "winston": "^3.11.0",
     "p-limit": "^5.0.0",
     "simple-git": "^3.20.0",
     "glob": "^10.3.10",
-    "mime-types": "^2.1.35"
+    "mime-types": "^2.1.35",
+    "neo4j-driver": "^5.22.0"
   },
   "devDependencies": {
     "typescript": "^5.3.2",

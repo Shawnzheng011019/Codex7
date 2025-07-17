@@ -29,6 +29,9 @@ from utils.models import GitHubRepo, ProcessingPipeline, ProcessingStep
 from crawler.gitstar_ranking import GitStarRankingCrawler
 from crawler.github_api import GitHubAPIClient
 from extractor.content_extractor import ContentExtractor
+from graph.graph_builder import GraphBuilder
+from graph.neo4j_client import Neo4jClient
+
 
 config = get_config()
 
@@ -85,8 +88,9 @@ class ProcessingPipelineManager:
             
             # Step 5: Store in vector database
             await self.store_vectors(vectors)
-            
 
+            # Step 6: Build knowledge graph
+            await self.build_knowledge_graph(all_content)
             
             logger.success("Full processing pipeline completed successfully!")
             
@@ -233,8 +237,36 @@ class ProcessingPipelineManager:
         except Exception as e:
             logger.error(f"Error storing vectors: {e}")
             raise
-    
 
+    async def build_knowledge_graph(self, content_list):
+        """Build and store the knowledge graph."""
+        logger.info(f"Building knowledge graph from {len(content_list)} content items.")
+        
+        graph_builder = GraphBuilder()
+        
+        try:
+            with Neo4jClient() as neo4j_client: # Connection is opened once here
+                for i, content in enumerate(content_list):
+                    if not content.is_binary:
+                        try:
+                            nodes, relationships = graph_builder.build_graph_for_file(
+                                file_path=content.metadata.file_path,
+                                code_content=content.content
+                            )
+                            
+                            if nodes or relationships:
+                                neo4j_client.add_data(nodes, relationships)
+                                logger.debug(f"Processed file for graph: {content.metadata.file_path}")
+                        except Exception as e:
+                            logger.error(f"Failed to parse file {content.metadata.file_path}: {e}")
+
+                    if (i + 1) % 100 == 0:
+                        logger.info(f"Processed {i + 1}/{len(content_list)} files for graph building.")
+
+            logger.success("Knowledge graph building completed successfully!")
+        except Exception as e:
+            logger.error(f"Error building knowledge graph: {e}")
+            raise
     
     async def _save_repositories(self, repos: List[GitHubRepo]):
         """Save repository list to file."""
@@ -310,6 +342,7 @@ async def main():
     parser.add_argument("--chunk", action="store_true", help="Generate text chunks")
     parser.add_argument("--embed", action="store_true", help="Generate embeddings")
     parser.add_argument("--store", action="store_true", help="Store vectors in database")
+    parser.add_argument("--build-graph", action="store_true", help="Build the knowledge graph")
 
     parser.add_argument("--full-pipeline", action="store_true", help="Run complete pipeline")
     
@@ -320,7 +353,7 @@ async def main():
     args = parser.parse_args()
     
     # Validate arguments
-    if not any([args.crawl, args.extract, args.chunk, args.embed, args.store, args.full_pipeline]):
+    if not any([args.crawl, args.extract, args.chunk, args.embed, args.store, args.build_graph, args.full_pipeline]):
         parser.print_help()
         return
     
@@ -364,6 +397,11 @@ async def main():
                 if not vectors:
                     vectors = await load_embeddings_from_cache()
                 await pipeline.store_vectors(vectors)
+
+            if args.build_graph:
+                if not content:
+                    content = await load_content_from_cache()
+                await pipeline.build_knowledge_graph(content)
             
 
         

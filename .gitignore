@@ -10,6 +10,7 @@ python/.env.*
 
 # Data directory
 data/
+python/data/
 
 # Logs
 *.log
@@ -26,13 +27,16 @@ __pycache__/
 
 # Node modules
 node_modules/
+dist/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+volumes/
 
 # OS
 .DS_Store
 Thumbs.db
+python/vendor/

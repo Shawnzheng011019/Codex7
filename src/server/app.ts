@@ -48,7 +48,7 @@ export class WebServer {
     this.app.use(express.static(path.join(__dirname, '../../public')));
 
     // Request logging
-    this.app.use((req, res, next) => {
+    this.app.use((req, _res, next) => {
       logger.debug(`${req.method} ${req.path}`, { body: req.body });
       next();
     });
@@ -76,17 +76,17 @@ export class WebServer {
     this.app.post('/api/config/search', this.updateSearchConfig.bind(this));
     
     // Demo page
-    this.app.get('/', (req, res) => {
+    this.app.get('/', (_req, res) => {
       res.sendFile(path.join(__dirname, '../../public/index.html'));
     });
     
     // 404 handler
-    this.app.use((req, res) => {
+    this.app.use((_req, res) => {
       res.status(404).json({ error: 'Not found' });
     });
     
     // Error handler
-    this.app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    this.app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       logger.error('Express error:', err);
       res.status(500).json({ error: 'Internal server error' });
     });
@@ -121,7 +121,7 @@ export class WebServer {
     }
   }
 
-  private async healthCheck(req: express.Request, res: express.Response): Promise<void> {
+  private async healthCheck(_req: express.Request, res: express.Response): Promise<void> {
     try {
       const stats = this.hybridSearchService.getStats();
       res.json({
@@ -142,7 +142,7 @@ export class WebServer {
     }
   }
 
-  private async getTools(req: express.Request, res: express.Response): Promise<void> {
+  private async getTools(_req: express.Request, res: express.Response): Promise<void> {
     try {
       const tools = this.mcpServer.getTools();
       res.json({ tools });
@@ -281,7 +281,7 @@ export class WebServer {
     }
   }
 
-  private async getStats(req: express.Request, res: express.Response): Promise<void> {
+  private async getStats(_req: express.Request, res: express.Response): Promise<void> {
     try {
       const mcpRequest = {
         method: 'tools/call',
@@ -300,7 +300,7 @@ export class WebServer {
     }
   }
 
-  private async getSearchStats(req: express.Request, res: express.Response): Promise<void> {
+  private async getSearchStats(_req: express.Request, res: express.Response): Promise<void> {
     try {
       const stats = this.hybridSearchService.getStats();
       res.json({
@@ -313,7 +313,7 @@ export class WebServer {
     }
   }
 
-  private async getSearchConfig(req: express.Request, res: express.Response): Promise<void> {
+  private async getSearchConfig(_req: express.Request, res: express.Response): Promise<void> {
     try {
       const stats = this.hybridSearchService.getStats();
       res.json({

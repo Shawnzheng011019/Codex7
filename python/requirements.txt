@@ -65,4 +65,10 @@ httpx==0.28.1
 pytest==8.3.4
 black==24.10.0
 isort==5.13.2
-flake8==7.1.1 
+flake8==7.1.1
+
+# Graph Database
+neo4j
+tree-sitter
+tree-sitter-python
+tree-sitter-typescript

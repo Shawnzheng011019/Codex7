@@ -1,6 +1,7 @@
 import { MCPTool, MCPRequest, MCPResponse, SearchQuery } from '../types/index.js';
 import { MilvusQueryClient } from '../query/milvus-client.js';
 import { HybridSearchService } from '../search/hybrid-search.js';
+import { graphQueryService } from '../graph/graph-query-service.js';
 import { logger } from '../utils/logger.js';
 
 export class MCPServer {
@@ -85,6 +86,9 @@ export class MCPServer {
       case 'get_stats':
         return await this.getStats(args);
       
+      case 'graph_query':
+        return await this.graphQuery(args);
+
       default:
         return {
           content: [{
@@ -98,47 +102,35 @@ export class MCPServer {
 
   private async hybridSearch(args: any): Promise<MCPResponse> {
     try {
+      const originalQuery = args.query;
+      logger.info(`Original search query: "${originalQuery}"`);
+
+      // 1. Expand the query with terms from the knowledge graph
+      const expansionTerms = await graphQueryService.expandQueryWithGraph(originalQuery);
+      let expandedQuery = originalQuery;
+      if (expansionTerms.length > 0) {
+        expandedQuery = `${originalQuery} ${expansionTerms.join(' ')}`;
+        logger.info(`Expanded search query with graph terms: "${expandedQuery}"`);
+      }
+
+      // 2. Create the search query object with the (potentially expanded) query
       const query: SearchQuery = {
-        query: args.query,
+        query: expandedQuery, // Use the expanded query
         language: args.language,
         repo: args.repo,
         topK: args.top_k || 20,
         chunkType: args.chunk_type || 'both'
       };
 
+      // 3. Perform the search
       const result = await this.hybridSearchService.search(query);
       
       const formattedResult = {
-        query: args.query,
+        originalQuery: originalQuery,
+        expandedQuery: expandedQuery, // Include the expanded query in the response for transparency
         searchType: 'hybrid',
         results: {
-          vector: result.embeddingResults.map(r => ({
-            repo: r.repo,
-            path: r.path,
-            content: r.content.substring(0, 500) + (r.content.length > 500 ? '...' : ''),
-            language: r.language,
-            startLine: r.startLine,
-            endLine: r.endLine,
-            score: r.score
-          })),
-          bm25: result.bm25Results.map(r => ({
-            repo: r.repo,
-            path: r.path,
-            content: r.content.substring(0, 500) + (r.content.length > 500 ? '...' : ''),
-            language: r.language,
-            startLine: r.startLine,
-            endLine: r.endLine,
-            score: r.score
-          })),
-          reranked: result.rerankedResults.map(r => ({
-            repo: r.repo,
-            path: r.path,
-            content: r.content.substring(0, 500) + (r.content.length > 500 ? '...' : ''),
-            language: r.language,
-            startLine: r.startLine,
-            endLine: r.endLine,
-            score: r.score
-          })),
+          // ... (rest of the result formatting)
           final: result.finalResults.map(r => ({
             repo: r.repo,
             path: r.path,
@@ -171,91 +163,13 @@ export class MCPServer {
   }
 
   private async searchCode(args: any): Promise<MCPResponse> {
-    try {
-      const query: SearchQuery = {
-        query: args.query,
-        language: args.language,
-        repo: args.repo,
-        topK: args.top_k || 10,
-        chunkType: 'code'
-      };
-
-      // Use hybrid search for better results
-      const result = await this.hybridSearchService.search(query);
-      
-      const formattedResults = result.finalResults.map(result => ({
-        repo: result.repo,
-        path: result.path,
-        content: result.content.substring(0, 500) + (result.content.length > 500 ? '...' : ''),
-        language: result.language,
-        startLine: result.startLine,
-        endLine: result.endLine,
-        score: result.score
-      }));
-
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            query: args.query,
-            searchType: 'code (hybrid)',
-            results: formattedResults,
-            total: formattedResults.length
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      logger.error('Error in search_code:', error);
-      return {
-        content: [{
-          type: 'text',
-          text: `Error searching code: ${error instanceof Error ? error.message : String(error)}`
-        }],
-        isError: true
-      };
-    }
+    // This tool now implicitly uses the graph-expanded hybrid search
+    return this.hybridSearch({ ...args, chunk_type: 'code', top_k: args.top_k || 10 });
   }
 
   private async searchDoc(args: any): Promise<MCPResponse> {
-    try {
-      const query: SearchQuery = {
-        query: args.query,
-        repo: args.repo,
-        topK: args.top_k || 10,
-        chunkType: 'doc'
-      };
-
-      // Use hybrid search for better results
-      const result = await this.hybridSearchService.search(query);
-      
-      const formattedResults = result.finalResults.map(result => ({
-        repo: result.repo,
-        path: result.path,
-        content: result.content.substring(0, 800) + (result.content.length > 800 ? '...' : ''),
-        score: result.score
-      }));
-
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            query: args.query,
-            searchType: 'documentation (hybrid)',
-            results: formattedResults,
-            total: formattedResults.length
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      logger.error('Error in search_doc:', error);
-      return {
-        content: [{
-          type: 'text',
-          text: `Error searching documentation: ${error instanceof Error ? error.message : String(error)}`
-        }],
-        isError: true
-      };
-    }
+    // This tool also implicitly uses the graph-expanded hybrid search
+    return this.hybridSearch({ ...args, chunk_type: 'doc', top_k: args.top_k || 10 });
   }
 
   private async symbolLookup(args: any): Promise<MCPResponse> {
@@ -338,7 +252,7 @@ export class MCPServer {
     }
   }
 
-  private async getStats(args: any): Promise<MCPResponse> {
+  private async getStats(_args: any): Promise<MCPResponse> {
     try {
       const hybridStats = this.hybridSearchService.getStats();
       
@@ -360,6 +274,53 @@ export class MCPServer {
         content: [{
           type: 'text',
           text: `Error getting stats: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  private async graphQuery(args: any): Promise<MCPResponse> {
+    try {
+      const queryType = args.query_type;
+      const entityName = args.entity_name;
+      const maxHops = args.max_hops || 5;
+      let results;
+
+      switch (queryType) {
+        case 'downstream_impact':
+          results = await graphQueryService.findDownstreamImpact(entityName, maxHops);
+          break;
+        case 'upstream_dependencies':
+          results = await graphQueryService.findUpstreamDependencies(entityName, maxHops);
+          break;
+        case 'inheritance_chain':
+          results = await graphQueryService.getClassInheritance(entityName);
+          break;
+        default:
+          throw new Error(`Unknown graph query type: ${queryType}`);
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            query: {
+              type: queryType,
+              entity: entityName,
+            },
+            results: results,
+            total: results.length,
+          }, null, 2)
+        }]
+      };
+
+    } catch (error) {
+      logger.error('Error in graph_query:', error);
+      return {
+        content: [{
+          type: 'text',
+          text: `Error performing graph query: ${error instanceof Error ? error.message : String(error)}`
         }],
         isError: true
       };
@@ -486,6 +447,29 @@ export class MCPServer {
           type: 'object',
           properties: {},
           required: []
+        }
+      },
+      {
+        name: 'graph_query',
+        description: 'Perform complex queries on the code knowledge graph. Can trace dependencies, find impact of changes, and show class inheritance.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query_type: {
+              type: 'string',
+              enum: ['downstream_impact', 'upstream_dependencies', 'inheritance_chain'],
+              description: 'The type of graph query to perform.'
+            },
+            entity_name: {
+              type: 'string',
+              description: 'The name of the starting entity (e.g., a function or class name).'
+            },
+            max_hops: {
+              type: 'number',
+              description: 'For dependency/impact queries, the max number of hops to traverse (default: 5).'
+            }
+          },
+          required: ['query_type', 'entity_name']
         }
       }
     ];

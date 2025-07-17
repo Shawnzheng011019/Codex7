@@ -1,6 +1,5 @@
 import { SearchResult } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-import { config } from '../utils/config.js';
 
 export interface RerankConfig {
   model: 'bge-reranker' | 'colbert' | 'cross-encoder' | 'reciprocal-rank-fusion';

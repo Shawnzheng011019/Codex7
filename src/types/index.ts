@@ -185,6 +185,12 @@ export interface Config {
     codeModelPath: string;
     rerankModelPath: string;
   };
+  neo4j: {
+    uri: string;
+    user: string;
+    password?: string;
+    database?: string;
+  };
 }
 
 // Crawler types

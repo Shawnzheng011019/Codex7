@@ -69,14 +69,19 @@ class Config(BaseSettings):
         """Get rerank model name, prioritizing rerank_model_path if set."""
         return self.rerank_model_path or self.rerank_model_name
     
+    # Neo4j Configuration
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "password"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
         extra = "ignore"  # Allow extra fields in .env file
 
-
-# Global config instance
+# Global configuration instance
 config = Config()
+
 
 
 def get_config() -> Config:
