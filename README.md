@@ -1,168 +1,206 @@
-# Codex7 - GitHub RAG System
+# Codex7 - Local Codebase RAG System
 
-An intelligent RAG (Retrieval-Augmented Generation) system that provides semantic search capabilities across the top 100 GitHub repositories. Built with TypeScript (MCP Server) and Python (AI Processing Pipeline).
+An intelligent RAG (Retrieval-Augmented Generation) system specifically designed for analyzing and searching local codebases. Built entirely with TypeScript, it provides semantic search capabilities, code analysis, and MCP integration for AI IDEs.
 
 ## 🌟 Features
 
-- **🔍 Semantic Code Search**: Search for code patterns across 100+ top GitHub repositories
-- **📚 Documentation Search**: Find relevant documentation and guides
-- **⚡ Symbol Lookup**: Quick lookup of functions, classes, and variables
-- **🤖 MCP Integration**: Model Context Protocol server for AI IDE integration
+- **🔍 Local Codebase Analysis**: Scan and index your local projects for intelligent search
+- **📚 Multi-Content Support**: Analyze code, documentation, configuration files, and more
+- **⚡ Semantic Search**: Advanced hybrid search combining vector similarity and BM25
+- **🤖 MCP Integration**: Model Context Protocol server for seamless AI IDE integration
 - **🎯 Multi-language Support**: JavaScript, TypeScript, Python, Go, Rust, Java, C++, and more
-- **📊 Vector Database**: Powered by Milvus for fast similarity search
-- **🌐 Web Interface**: Beautiful demo interface for testing and exploration
+- **📊 Knowledge Graph**: Build code dependency graphs for impact analysis
+- **🌐 Flexible Embeddings**: Support for OpenAI, Hugging Face, and local embedding models
 
 ## 🏗️ Architecture
 
-The system is split into two main components:
+The system is built entirely in TypeScript with a clean, modular architecture:
 
-### Python Processing Pipeline
-- **Crawling**: Extract top repositories from gitstar-ranking.com
-- **Content Extraction**: Parse documentation and code files
-- **Text Chunking**: Intelligent chunking for optimal retrieval
-- **Embedding**: BGE (Chinese) and code-specific embedding models
-- **Vector Storage**: Milvus database with hybrid search capabilities
+### Core Components
+- **Scanner**: Local codebase file system scanner (`src/scanner/`)
+- **Processor**: Content chunking and embedding generation (`src/processor/`)
+- **Vector Database**: Milvus client for fast similarity search (`src/query/`)
+- **Graph Database**: Neo4j client for code relationships (`src/graph/`)
+- **MCP Server**: Tools for AI IDE integration (`src/mcp/`)
+- **Embedding Service**: Multi-provider embedding generation (`src/embedding/`)
+- **Search Engine**: Hybrid search with BM25 and reranking (`src/search/`)
 
-### TypeScript MCP Server
-- **Query Interface**: Direct connection to vector database
-- **MCP Tools**: `search_code`, `search_doc`, `symbol_lookup`
-- **Web API**: RESTful endpoints for web interface
-- **Demo Interface**: Interactive web UI for testing
+### Processing Pipeline
+1. **Scan** → Discover and categorize local project files
+2. **Extract** → Parse code and documentation content
+3. **Chunk** → Intelligent text segmentation with context preservation
+4. **Embed** → Generate semantic embeddings using your preferred model
+5. **Index** → Store in vector and graph databases for fast retrieval
+6. **Search** → Hybrid search with reranking for optimal results
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
 - Node.js 18+
 - Milvus 2.3+ (vector database)
-- GitHub API token
+- Neo4j 5+ (graph database, optional but recommended)
 
-### 1. Setup Python Environment
-
-```bash
-cd python
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Setup TypeScript Environment
+### 1. Installation
 
 ```bash
+git clone https://github.com/your-org/codex7.git
+cd codex7
 npm install
 ```
 
-### 3. Configuration
+### 2. Configuration
 
-Copy environment files and configure:
+Copy and configure the environment file:
 
 ```bash
-# Python configuration
-cp python/env.example python/.env
-# Edit python/.env with your tokens and database settings
-
-# TypeScript configuration
 cp env.example .env
-# Edit .env with your settings
 ```
 
-### 4. Run the Processing Pipeline
+Edit `.env` with your settings:
 
-```bash
-cd python
-python main.py --full-pipeline
+```env
+# Server Configuration
+PORT=3000
+LOG_LEVEL=info
+
+# Database Configuration
+MILVUS_HOST=localhost
+MILVUS_PORT=19530
+MILVUS_DATABASE=codex7_local
+
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your_password
+
+# Embedding Configuration
+DEFAULT_EMBEDDING_PROVIDER=local  # or 'openai', 'huggingface'
+DEFAULT_EMBEDDING_MODEL=mock     # or your preferred model
+OPENAI_API_KEY=your_openai_key   # if using OpenAI
+HUGGINGFACE_API_KEY=your_hf_key  # if using Hugging Face
+
+# Processing Configuration
+MAX_FILE_SIZE_MB=5
+MAX_PROJECT_SIZE_MB=500
+DEFAULT_CHUNK_SIZE=1000
+DEFAULT_CHUNK_OVERLAP=200
 ```
 
-This will:
-1. Crawl top 100 GitHub repositories
-2. Extract and clean content
-3. Generate embeddings
-4. Store in vector database
-5. Build search indices
-
-### 5. Start the MCP Server
+### 3. Start the System
 
 ```bash
+# Development mode with auto-reload
 npm run dev
+
+# Production build and start
+npm run build
+npm start
 ```
 
-The server will start on `http://localhost:3000` with the demo interface.
+The MCP server will start on `http://localhost:3000` by default.
 
 ## 📖 Usage
 
-### Web Interface
-
-Visit `http://localhost:3000` to access the demo interface with:
-- **Code Search**: Find code snippets by description
-- **Documentation Search**: Search through README files and docs
-- **Symbol Lookup**: Find specific functions or classes
-
 ### MCP Tools
 
-The system provides 5 MCP tools for AI IDE integration:
+The system provides comprehensive MCP tools for local codebase analysis:
 
-#### `search_code`
+#### `scan_project`
+Analyze project structure and content types:
 ```json
 {
-  "name": "search_code",
+  "name": "scan_project",
+  "arguments": {
+    "project_path": "/path/to/your/project",
+    "project_name": "my-project"
+  }
+}
+```
+
+#### `index_project`
+Index a project for search and analysis:
+```json
+{
+  "name": "index_project",
+  "arguments": {
+    "project_path": "/path/to/your/project",
+    "project_name": "my-project",
+    "embedding_provider": "openai",
+    "embedding_model": "text-embedding-3-small",
+    "api_key": "your_api_key"
+  }
+}
+```
+
+#### `search_codebase`
+Hybrid search across indexed projects:
+```json
+{
+  "name": "search_codebase",
   "arguments": {
     "query": "authentication function",
-    "language": "Python",
-    "repo": "django/django",
+    "project": "my-project",
+    "language": "TypeScript",
+    "content_type": "code",
     "top_k": 10
   }
 }
 ```
 
-#### `search_doc`
+#### `search_code`
+Specialized code search:
 ```json
 {
-  "name": "search_doc",
+  "name": "search_code",
   "arguments": {
-    "query": "installation guide",
-    "repo": "facebook/react",
+    "query": "async function with error handling",
+    "language": "JavaScript",
     "top_k": 5
   }
 }
 ```
 
-#### `symbol_lookup`
+#### `search_docs`
+Documentation-focused search:
 ```json
 {
-  "name": "symbol_lookup",
+  "name": "search_docs",
   "arguments": {
-    "symbol_name": "useState",
-    "repo": "facebook/react"
+    "query": "installation guide",
+    "project": "my-project"
   }
 }
 ```
 
-#### `get_repository_files`
+#### `analyze_dependencies`
+Trace code dependencies and impact:
 ```json
 {
-  "name": "get_repository_files",
+  "name": "analyze_dependencies",
   "arguments": {
-    "repo": "microsoft/vscode"
+    "entity_name": "UserService",
+    "max_hops": 3
   }
 }
 ```
 
-#### `get_stats`
+#### `find_symbol`
+Locate specific functions, classes, or variables:
 ```json
 {
-  "name": "get_stats",
-  "arguments": {}
+  "name": "find_symbol",
+  "arguments": {
+    "symbol_name": "authenticate",
+    "project": "my-project"
+  }
 }
 ```
 
-### API Endpoints
+### Additional Tools
 
-- `GET /api/health` - Health check
-- `GET /api/tools` - List available MCP tools
-- `POST /api/search/code` - Code search
-- `POST /api/search/doc` - Documentation search
-- `POST /api/search/symbol` - Symbol lookup
-- `GET /api/stats` - System statistics
+- `get_project_files` - List all indexed files in a project
+- `get_file_content` - Retrieve specific file content
+- `get_indexed_projects` - Show all indexed projects
+- `configure_embedding` - Change embedding provider/model
 
 ## 🛠️ Development
 
@@ -170,50 +208,44 @@ The system provides 5 MCP tools for AI IDE integration:
 
 ```
 Codex7/
-├── python/                 # AI Processing Pipeline
-│   ├── crawler/           # GitHub repository crawling
-│   ├── extractor/         # Content extraction and cleaning
-│   ├── chunking/          # Text chunking strategies
-│   ├── embedding/         # Embedding generation
-│   ├── vectordb/          # Vector database operations
-│   ├── search/            # Hybrid search implementation
-│   └── utils/             # Configuration and models
-├── src/                   # TypeScript MCP Server
-│   ├── mcp/              # MCP protocol implementation
+├── src/
+│   ├── scanner/           # Local codebase scanning
+│   │   └── local-codebase-scanner.ts
+│   ├── processor/         # Content processing and chunking
+│   │   └── content-processor.ts
+│   ├── embedding/         # Embedding generation service
+│   │   └── embedding-service.ts
 │   ├── query/            # Database query clients
-│   ├── server/           # Web server and API
+│   │   └── milvus-client.ts
+│   ├── search/           # Hybrid search implementation
+│   │   ├── hybrid-search.ts
+│   │   ├── bm25-search.ts
+│   │   └── rerank-service.ts
+│   ├── graph/            # Knowledge graph operations
+│   │   ├── neo4j-client.ts
+│   │   └── graph-query-service.ts
+│   ├── mcp/              # MCP protocol implementation
+│   │   ├── server.ts
+│   │   └── local-codebase-server.ts
+│   ├── server/           # Express server
+│   │   └── app.ts
 │   ├── types/            # TypeScript type definitions
+│   │   └── index.ts
 │   └── utils/            # Configuration and utilities
-├── public/               # Web interface assets
-└── data/                 # Processed data and cache
+│       ├── config.ts
+│       └── logger.ts
+├── public/               # Web interface assets (optional)
+│   └── index.html
+└── package.json
 ```
 
-### Running Individual Pipeline Steps
+### Available Scripts
 
 ```bash
-# Crawl repositories only
-python main.py --crawl
-
-# Extract content only
-python main.py --extract
-
-# Generate embeddings only
-python main.py --embed
-
-# Store vectors only
-python main.py --store
-
-# Build search indices only
-python main.py --index
-```
-
-### TypeScript Development
-
-```bash
-# Watch mode for development
+# Development with watch mode
 npm run dev
 
-# Build for production
+# Build TypeScript to JavaScript
 npm run build
 
 # Start production server
@@ -221,59 +253,104 @@ npm start
 
 # Run tests
 npm test
+
+# Lint code
+npm run lint
+```
+
+### Building Components
+
+Each component can be run independently for development:
+
+```bash
+# Run local codebase scanner
+tsx src/scanner/local-codebase-scanner.ts
+
+# Run content processor
+tsx src/processor/content-processor.ts
+
+# Run embedding service
+tsx src/embedding/embedding-service.ts
+
+# Run MCP server
+tsx src/mcp/server.ts
 ```
 
 ## 🔧 Configuration
 
-### Python Configuration (python/.env)
+### Embedding Providers
 
+**OpenAI** (Recommended for production):
 ```env
-# GitHub API
-GITHUB_TOKEN=your_github_token
-
-# Vector Database
-MILVUS_HOST=localhost
-MILVUS_PORT=19530
-MILVUS_DATABASE=codex7
-
-# Processing
-MAX_REPOS=100
-CHUNK_SIZE=512
-MAX_FILE_SIZE_MB=1
-
-# Models
-BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
-CODE_MODEL_NAME=jinaai/jina-embeddings-v2-base-code
+DEFAULT_EMBEDDING_PROVIDER=openai
+DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_API_KEY=your_key
 ```
 
-### TypeScript Configuration (.env)
-
+**Hugging Face** (Good balance of cost/quality):
 ```env
-# Server
-PORT=3000
-LOG_LEVEL=info
-
-# Database
-MILVUS_HOST=localhost
-MILVUS_PORT=19530
-MILVUS_DATABASE=codex7
+DEFAULT_EMBEDDING_PROVIDER=huggingface
+DEFAULT_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+HUGGINGFACE_API_KEY=your_key
 ```
+
+**Local** (No cost, for development):
+```env
+DEFAULT_EMBEDDING_PROVIDER=local
+DEFAULT_EMBEDDING_MODEL=mock
+```
+
+### Supported Languages
+
+The system automatically detects and processes these languages:
+- **JavaScript/TypeScript** - Node.js, React, Vue.js projects
+- **Python** - Django, Flask, FastAPI, data science projects
+- **Go** - Microservices, CLI tools
+- **Rust** - System programming, web assembly
+- **Java** - Spring Boot, Maven projects
+- **C/C++** - System software, embedded projects
+- **PHP** - Laravel, Symfony web applications
+- **Ruby** - Rails applications
+- **Swift** - iOS/macOS applications
+- **Kotlin** - Android, server-side development
+- **Scala** - Big data, functional programming
+- **R** - Data science and analytics
+- **Shell** - Bash, Zsh scripts
+- **SQL** - Database queries and schemas
+- **HTML/CSS** - Web frontend
+- **Markdown** - Documentation
 
 ## 📊 Performance
 
-- **Repositories Indexed**: 100+ top GitHub repositories
-- **Content Chunks**: 1M+ code and documentation chunks
-- **Search Latency**: <100ms for semantic search
-- **Embedding Models**: BGE-large-zh-v1.5 (docs), Jina-v2-base-code (code)
-- **Vector Database**: Milvus with HNSW indexing
+- **Indexing Speed**: ~100-500 files/minute (depending on size and embedding provider)
+- **Search Latency**: <100ms for semantic search across millions of chunks
+- **Memory Usage**: ~2-4GB for typical project (depends on chunk count)
+- **Storage**: ~100-200MB per 10k chunks in vector database
+
+## 🔍 Search Features
+
+### Hybrid Search
+Combines vector similarity search with BM25 keyword matching:
+- **Vector Search**: Semantic understanding using embeddings
+- **BM25 Search**: Traditional keyword-based relevance
+- **Reranking**: Smart combination of both approaches
+- **Graph Enhancement**: Uses knowledge graph to expand queries
+
+### Search Types
+- **Code Search**: Optimized for finding functions, classes, and code patterns
+- **Documentation Search**: Focused on README files, comments, and docs
+- **Hybrid Search**: Combines code and documentation results
+- **Symbol Search**: Finds specific identifiers across projects
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes with proper TypeScript types
+4. Add tests for new functionality: `npm test`
+5. Lint your code: `npm run lint`
+6. Build the project: `npm run build`
+7. Submit a pull request
 
 ## 📝 License
 
@@ -281,8 +358,10 @@ MIT License - see LICENSE file for details.
 
 ## 🙏 Acknowledgments
 
-- **BGE Team** for the excellent embedding models
-- **Milvus** for the vector database
-- **GitHub** for the API access
-- **Model Context Protocol** for the integration standard
-- **GitStar Ranking** for repository rankings
+- **OpenAI** for embedding models and API
+- **Milvus** for the high-performance vector database
+- **Neo4j** for graph database capabilities
+- **Model Context Protocol** for AI IDE integration standard
+- **Hugging Face** for open-source embedding models
+- **TypeScript** for type-safe development
+- **Tree-sitter** for robust code parsing

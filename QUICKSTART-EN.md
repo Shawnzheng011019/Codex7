@@ -1,177 +1,431 @@
-# Quickstart Guide: Graph-Enhanced RAG for Code
+# Quickstart Guide: Local Codebase RAG with TypeScript
 
-This guide will walk you through setting up and using the Codex7 project, a sophisticated RAG (Retrieval-Augmented Generation) system enhanced with a Knowledge Graph to provide deep, structural understanding of codebases.
+This guide will walk you through setting up and using Codex7, a sophisticated RAG (Retrieval-Augmented Generation) system built entirely in TypeScript for analyzing and searching local codebases with knowledge graph enhancement.
 
-### Prerequisites
+## Prerequisites
 
 Ensure you have the following software installed:
-- **Git**
-- **Docker** and **Docker Compose**
-- **Python** (3.9 or higher)
 - **Node.js** (v18 or higher) and **npm**
+- **Git**
+- **Docker** and **Docker Compose** (for databases)
 
 ---
 
-### Step 1: Installation & Configuration
+## Step 1: Installation & Configuration
 
-**1. Clone the Repository**
+### 1. Clone the Repository
 ```bash
 git clone <your-repository-url>
 cd Codex7
 ```
 
-**2. Configure Environment Variables**
-Create a `.env` file in the Python directory by copying the example file:
+### 2. Install Dependencies
 ```bash
-cp python/env.example python/.env
+npm install
 ```
-Now, open the `python/.env` file and fill in the necessary credentials. At a minimum, you should set:
-- `GITHUB_TOKEN`: A GitHub Personal Access Token is highly recommended for avoiding API rate limits during the crawling phase.
-- `NEO4J_PASSWORD`: The password you will use for the Neo4j database.
-- `NEO4J_DATABASE`: The database name to use within Neo4j (defaults to `neo4j`).
 
-**3. Install Dependencies**
-- **Python Dependencies**:
-  ```bash
-  pip install -r python/requirements.txt
-  ```
-- **Node.js Dependencies**:
-  ```bash
-  npm install
-  ```
+### 3. Configure Environment Variables
+Create a `.env` file by copying the example:
+```bash
+cp env.example .env
+```
+
+Edit the `.env` file with your settings:
+```env
+# Server Configuration
+PORT=3000
+LOG_LEVEL=info
+
+# Database Configuration
+MILVUS_HOST=localhost
+MILVUS_PORT=19530
+MILVUS_DATABASE=codex7_local
+
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your_neo4j_password
+
+# Embedding Configuration
+DEFAULT_EMBEDDING_PROVIDER=openai  # or 'huggingface', 'local'
+DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_API_KEY=your_openai_api_key
+
+# Processing Configuration
+MAX_FILE_SIZE_MB=5
+MAX_PROJECT_SIZE_MB=500
+DEFAULT_CHUNK_SIZE=1000
+DEFAULT_CHUNK_OVERLAP=200
+```
 
 ---
 
-### Step 2: Launching Backend Services
+## Step 2: Launch Backend Services
 
-We use Docker to run the required databases (Milvus and Neo4j).
+### 1. Start Required Databases
+Use Docker to start Milvus (vector database) and Neo4j (graph database):
 
-**1. Start the Databases**
-Run the following command from the project root:
+**Option A: Using Docker Compose (Recommended)**
 ```bash
+# Create a docker-compose.yml file or use the provided one
 docker-compose up -d
 ```
-This will start:
-- **Milvus**: A vector database for semantic search, available on its default ports.
-- **Neo4j**: A graph database for knowledge graph storage and queries.
-  - **Browser UI**: `http://localhost:7474`
-  - **Bolt Port**: `bolt://localhost:7687`
-  - **Credentials**: `neo4j` / `<your-neo4j-password>`
 
-*Note: The provided Docker setup for Neo4j includes the APOC plugin, which is recommended for optimal performance but no longer a hard requirement thanks to recent code improvements.*
-
----
-
-### Step 3: Building the Knowledge Base
-
-This step runs the Python pipeline to crawl repositories, process their content, and populate both the vector and graph databases.
-
-**1. Run the Full Pipeline**
-Execute the main Python script with the `--full-pipeline` flag:
+**Option B: Manual Docker Setup**
 ```bash
-python python/main.py --full-pipeline
-```
-This script performs the following sequence of operations:
-1.  `--crawl`: Discovers and clones top GitHub repositories.
-2.  `--extract`: Reads the content of all relevant files from the cloned repos.
-3.  `--chunk`: Splits code and documents into smaller, meaningful chunks.
-4.  `--embed`: Converts text chunks into semantic vectors using an embedding model.
-5.  `--store`: Stores these vectors in the Milvus database.
-6.  `--build-graph`: Parses the code's structure (classes, functions, calls, inheritance) and stores it in the Neo4j database.
+# Start Milvus
+docker run -d --name milvus-standalone -p 19530:19530 -p 9091:9091 milvusdb/milvus:latest
 
-**2. Verify the Data (Optional)**
-- **Neo4j**: Open the Neo4j Browser (`http://localhost:7474`), log in, and run a Cypher query to see if the graph was created:
-  ```cypher
-  MATCH (n) RETURN n LIMIT 25;
-  ```
-- **Milvus**: You can use a Milvus client like Attu (not included in docker-compose) to verify that collections have been created and populated.
+# Start Neo4j
+docker run -d --name neo4j \
+  -p 7474:7474 -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/your_neo4j_password \
+  neo4j:latest
+```
+
+### 2. Verify Database Connections
+- **Milvus**: Available on port 19530 (no web UI by default)
+- **Neo4j**: 
+  - Web interface: `http://localhost:7474`
+  - Bolt connection: `bolt://localhost:7687`
+  - Credentials: `neo4j` / `your_neo4j_password`
 
 ---
 
-### Step 4: Starting the Query Server
+## Step 3: Start the Application
 
-Now that the knowledge base is built, start the main application server.
-
-**1. Run the Server**
+### 1. Development Mode (Recommended)
 ```bash
 npm run dev
 ```
-This will start the MCP (Multi-Content Prompt) server, typically on `http://localhost:3000`. The server exposes a tool-based API for querying the system.
+This starts the MCP server with auto-reload on `http://localhost:3000`.
+
+### 2. Production Mode
+```bash
+npm run build
+npm start
+```
+
+### 3. Verify Server is Running
+Check that the server is responding:
+```bash
+curl http://localhost:3000/health
+```
 
 ---
 
-### Step 5: Querying the System
+## Step 4: Index Your First Project
 
-You can now interact with the server using any HTTP client (like `curl`) to call its powerful search and query tools.
+### Method 1: Using MCP API
 
-**Example 1: Hybrid Search (with Automatic Graph Expansion)**
-Ask a natural language question. The system will automatically use the knowledge graph to find relevant technical terms and add them to the query for better accuracy.
-
-- **Request**:
+**Scan a project first:**
 ```bash
 curl -X POST http://localhost:3000/api/mcp/request \
 -H "Content-Type: application/json" \
 -d '{
   "method": "tools/call",
   "params": {
-    "name": "hybrid_search",
+    "name": "scan_project",
     "arguments": {
-      "query": "how is the hybrid search implemented?"
+      "project_path": "/path/to/your/project",
+      "project_name": "my-awesome-project"
     }
   }
 }'
 ```
 
-Or use the direct hybrid search API:
-```bash
-curl -X POST http://localhost:3000/api/search/hybrid \
--H "Content-Type: application/json" \
--d '{
-  "query": "how is the hybrid search implemented?",
-  "chunk_type": "both",
-  "top_k": 10
-}'
-```
-- **What Happens**: The system finds terms like `HybridSearchService` and `hybrid-search.ts` in the graph and expands the query before sending it to Milvus and BM25.
-
-**Example 2: Graph Traversal (Impact Analysis)**
-Ask the knowledge graph directly to find out what might be affected by a change to a specific function.
-
-- **Request**:
+**Index the project:**
 ```bash
 curl -X POST http://localhost:3000/api/mcp/request \
 -H "Content-Type: application/json" \
 -d '{
   "method": "tools/call",
   "params": {
-    "name": "graph_query",
+    "name": "index_project",
     "arguments": {
-      "query_type": "downstream_impact",
-      "entity_name": "hybridSearch"
+      "project_path": "/path/to/your/project",
+      "project_name": "my-awesome-project",
+      "embedding_provider": "openai",
+      "embedding_model": "text-embedding-3-small"
     }
   }
 }'
 ```
-- **What Happens**: Neo4j traces the `CALLS` relationships backwards from the `hybridSearch` function to find all functions that call it.
 
-**Example 3: Graph Traversal (Class Inheritance)**
-Trace the full inheritance tree for a specific class.
+### Method 2: Using Direct TypeScript Scripts
 
-- **Request**:
+You can also run individual components directly:
+
+```bash
+# Scan and process a local codebase
+tsx src/scanner/local-codebase-scanner.ts --project-path /path/to/your/project
+
+# Process content and generate embeddings
+tsx src/processor/content-processor.ts --project my-awesome-project
+
+# Build knowledge graph
+tsx src/graph/graph-query-service.ts --build-graph my-awesome-project
+```
+
+---
+
+## Step 5: Search and Query
+
+### 1. Hybrid Search (Combines Vector + BM25)
+Search across code and documentation:
 ```bash
 curl -X POST http://localhost:3000/api/mcp/request \
 -H "Content-Type: application/json" \
 -d '{
   "method": "tools/call",
   "params": {
-    "name": "graph_query",
+    "name": "search_codebase",
     "arguments": {
-      "query_type": "inheritance_chain",
-      "entity_name": "MCPServer"
+      "query": "authentication middleware function",
+      "project": "my-awesome-project",
+      "top_k": 10
     }
   }
 }'
 ```
-- **What Happens**: Neo4j follows the `INHERITS_FROM` relationships up and down the hierarchy from the `MCPServer` class.
 
+### 2. Code-Specific Search
+Find specific code patterns:
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "search_code",
+    "arguments": {
+      "query": "async function error handling try catch",
+      "language": "TypeScript",
+      "top_k": 5
+    }
+  }
+}'
 ```
+
+### 3. Documentation Search
+Search through README files, comments, and docs:
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "search_docs",
+    "arguments": {
+      "query": "installation setup guide",
+      "project": "my-awesome-project"
+    }
+  }
+}'
+```
+
+### 4. Knowledge Graph Queries
+
+**Find dependencies and impact analysis:**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "analyze_dependencies",
+    "arguments": {
+      "entity_name": "UserService",
+      "max_hops": 3
+    }
+  }
+}'
+```
+
+**Find specific symbols:**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "find_symbol",
+    "arguments": {
+      "symbol_name": "authenticate",
+      "project": "my-awesome-project"
+    }
+  }
+}'
+```
+
+---
+
+## Step 6: Advanced Usage
+
+### 1. Multiple Projects
+Index multiple projects for cross-project search:
+```bash
+# Index project A
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "index_project",
+    "arguments": {
+      "project_path": "/path/to/project-a",
+      "project_name": "project-a"
+    }
+  }
+}'
+
+# Index project B
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "index_project",
+    "arguments": {
+      "project_path": "/path/to/project-b",
+      "project_name": "project-b"
+    }
+  }
+}'
+
+# Search across all projects (omit project parameter)
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "search_codebase",
+    "arguments": {
+      "query": "database connection",
+      "top_k": 20
+    }
+  }
+}'
+```
+
+### 2. Configure Different Embedding Providers
+
+**Switch to Hugging Face:**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "configure_embedding",
+    "arguments": {
+      "provider": "huggingface",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "api_key": "your_huggingface_api_key"
+    }
+  }
+}'
+```
+
+**Use local embeddings (for development):**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "configure_embedding",
+    "arguments": {
+      "provider": "local",
+      "model": "mock"
+    }
+  }
+}'
+```
+
+### 3. Monitor and Manage Projects
+
+**List all indexed projects:**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "get_indexed_projects",
+    "arguments": {}
+  }
+}'
+```
+
+**Get project file list:**
+```bash
+curl -X POST http://localhost:3000/api/mcp/request \
+-H "Content-Type: application/json" \
+-d '{
+  "method": "tools/call",
+  "params": {
+    "name": "get_project_files",
+    "arguments": {
+      "project": "my-awesome-project"
+    }
+  }
+}'
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**1. Database Connection Errors**
+- Ensure Milvus is running on port 19530
+- Check Neo4j is accessible on port 7687
+- Verify credentials in `.env` file
+
+**2. Embedding Provider Issues**
+- Validate API keys for OpenAI/Hugging Face
+- Check rate limits and quotas
+- Use local provider for testing
+
+**3. Memory Issues**
+- Reduce `MAX_PROJECT_SIZE_MB` for large projects
+- Adjust `DEFAULT_CHUNK_SIZE` to smaller values
+- Monitor system memory usage
+
+**4. Performance Issues**
+- Use SSD storage for databases
+- Increase `MAX_SEARCH_RESULTS` gradually
+- Consider using faster embedding models
+
+### Debug Mode
+Enable detailed logging:
+```env
+LOG_LEVEL=debug
+```
+
+### Health Checks
+```bash
+# Check server health
+curl http://localhost:3000/health
+
+# Check database connections
+curl http://localhost:3000/api/health/databases
+```
+
+---
+
+## Next Steps
+
+1. **Integrate with AI IDEs**: Use the MCP protocol to connect with Claude, GPT, or other AI assistants
+2. **Customize Search**: Adjust search weights and algorithms in the configuration
+3. **Add More Projects**: Index your entire codebase for comprehensive search
+4. **Explore Graph Queries**: Use Neo4j browser to explore code relationships
+5. **Performance Tuning**: Optimize embedding models and database settings for your use case
+
+## Support
+
+- Check the main [README.md](README.md) for detailed documentation
+- Review TypeScript source code in the `src/` directory
+- Enable debug logging for troubleshooting
+- Open issues on the project repository

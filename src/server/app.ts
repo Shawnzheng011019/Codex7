@@ -97,7 +97,7 @@ export class WebServer {
       // Initialize services
       await this.hybridSearchService.initialize();
       
-      const port = config.server.port;
+      const port = config.port;
       this.server = this.app.listen(port, () => {
         logger.info(`Codex7 RAG System running on port ${port}`);
         logger.info(`Demo interface: http://localhost:${port}`);
@@ -210,7 +210,7 @@ export class WebServer {
       };
       
       const response = await this.mcpServer.handleRequest(mcpRequest);
-      const result = JSON.parse(response.content[0].text);
+      const result = response.content ? JSON.parse(response.content[0].text) : response;
       
       res.json(result);
     } catch (error) {
@@ -231,7 +231,7 @@ export class WebServer {
       };
       
       const response = await this.mcpServer.handleRequest(mcpRequest);
-      const result = JSON.parse(response.content[0].text);
+      const result = response.content ? JSON.parse(response.content[0].text) : response;
       
       res.json(result);
     } catch (error) {
@@ -252,7 +252,7 @@ export class WebServer {
       };
       
       const response = await this.mcpServer.handleRequest(mcpRequest);
-      const result = JSON.parse(response.content[0].text);
+      const result = response.content ? JSON.parse(response.content[0].text) : response;
       
       res.json(result);
     } catch (error) {
@@ -273,7 +273,7 @@ export class WebServer {
       };
       
       const response = await this.mcpServer.handleRequest(mcpRequest);
-      const result = JSON.parse(response.content[0].text);
+      const result = response.content ? JSON.parse(response.content[0].text) : response;
       
       res.json(result);
     } catch (error) {
@@ -292,7 +292,7 @@ export class WebServer {
       };
       
       const response = await this.mcpServer.handleRequest(mcpRequest);
-      const result = JSON.parse(response.content[0].text);
+      const result = response.content ? JSON.parse(response.content[0].text) : response;
       
       res.json(result);
     } catch (error) {

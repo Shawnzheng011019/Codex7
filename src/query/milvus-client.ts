@@ -1,4 +1,4 @@
-import { MilvusClient, MetricType } from '@zilliz/milvus2-sdk-node';
+import { MilvusClient, MetricType, DataType } from '@zilliz/milvus2-sdk-node';
 import { SearchQuery, SearchResult, VectorMetadata } from '../types/index.js';
 import { config } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
@@ -9,16 +9,15 @@ export class MilvusQueryClient {
 
   constructor() {
     const clientConfig: any = {
-      address: `${config.milvus.host}:${config.milvus.port}`,
-      database: config.milvus.database,
+      address: `${config.milvusHost}:${config.milvusPort}`,
     };
     
-    if (config.milvus.user) {
-      clientConfig.username = config.milvus.user;
+    if (process.env.MILVUS_USER) {
+      clientConfig.username = process.env.MILVUS_USER;
     }
     
-    if (config.milvus.password) {
-      clientConfig.password = config.milvus.password;
+    if (process.env.MILVUS_PASSWORD) {
+      clientConfig.password = process.env.MILVUS_PASSWORD;
     }
     
     this.client = new MilvusClient(clientConfig);
@@ -28,6 +27,14 @@ export class MilvusQueryClient {
     try {
       // Test connection
       await this.client.checkHealth();
+      
+      // Use default database only
+      await this.client.useDatabase({ db_name: 'default' });
+      logger.info('Using default database');
+      
+      // Check if collection exists, create if not
+      await this.ensureCollectionExists();
+      
       this.isConnected = true;
       logger.info('Connected to Milvus successfully');
     } catch (error) {
@@ -173,6 +180,51 @@ export class MilvusQueryClient {
     }
   }
 
+  async insertVectors(vectors: any[]): Promise<void> {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    try {
+      if (vectors.length === 0) {
+        logger.warn('No vectors to insert');
+        return;
+      }
+
+      const collectionName = 'codex7_chunks';
+      
+      // Prepare data for insertion
+      const data = vectors.map(vector => ({
+        id: vector.id,
+        vector: vector.vector,
+        repo: vector.metadata.repo,
+        path: vector.metadata.path,
+        content: vector.content || '',
+        chunk_type: vector.metadata.chunkType,
+        language: vector.metadata.language,
+        start_line: vector.metadata.startLine,
+        end_line: vector.metadata.endLine,
+        chunk_index: vector.metadata.chunkIndex,
+        star_count: vector.metadata.starCount || 0,
+        last_commit_date: vector.metadata.lastCommitDate || '',
+        text_hash: vector.metadata.textHash || '',
+        token_count: vector.metadata.tokenCount,
+        content_length: vector.metadata.contentLength
+      }));
+
+      const insertParams = {
+        collection_name: collectionName,
+        data: data
+      };
+
+      await this.client.insert(insertParams);
+      logger.info(`Inserted ${vectors.length} vectors into ${collectionName}`);
+    } catch (error) {
+      logger.error('Error inserting vectors:', error);
+      throw error;
+    }
+  }
+
   async getCollectionStats(): Promise<any> {
     if (!this.isConnected) {
       await this.connect();
@@ -248,10 +300,12 @@ export class MilvusQueryClient {
         language: result.language,
         startLine: result.start_line,
         endLine: result.end_line,
+        chunkIndex: result.chunk_index || 0,
         starCount: result.star_count,
         lastCommitDate: result.last_commit_date,
         textHash: result.text_hash,
-        tokenCount: result.token_count,
+        tokenCount: result.token_count || 0,
+        contentLength: result.content_length || result.content?.length || 0,
       };
 
       return {
@@ -278,10 +332,12 @@ export class MilvusQueryClient {
         language: result.language,
         startLine: result.start_line,
         endLine: result.end_line,
+        chunkIndex: result.chunk_index || 0,
         starCount: result.star_count,
         lastCommitDate: result.last_commit_date,
         textHash: result.text_hash,
-        tokenCount: result.token_count,
+        tokenCount: result.token_count || 0,
+        contentLength: result.content_length || result.content?.length || 0,
       };
 
       return {
@@ -297,5 +353,189 @@ export class MilvusQueryClient {
         metadata,
       };
     });
+  }
+
+  // Database creation logic removed - using default database only
+
+  private async ensureCollectionExists(): Promise<void> {
+    try {
+      const collectionName = 'codex7_chunks';
+      const exists = await this.client.hasCollection({
+        collection_name: collectionName,
+      });
+      
+      if (!exists.value) {
+        await this.createCollection(collectionName);
+        logger.info(`Created collection: ${collectionName}`);
+      }
+    } catch (error) {
+      logger.error('Error ensuring collection exists:', error);
+      throw error;
+    }
+  }
+
+  private async createCollection(collectionName: string): Promise<void> {
+    const schema = {
+      collection_name: collectionName,
+      fields: [
+        {
+          name: 'id',
+          data_type: DataType.VarChar,
+          is_primary_key: true,
+          max_length: 256,
+        },
+        {
+          name: 'vector',
+          data_type: DataType.FloatVector,
+          dim: 1536, // OpenAI text-embedding-3-small dimension
+        },
+        {
+          name: 'repo',
+          data_type: DataType.VarChar,
+          max_length: 256,
+        },
+        {
+          name: 'path',
+          data_type: DataType.VarChar,
+          max_length: 512,
+        },
+        {
+          name: 'content',
+          data_type: DataType.VarChar,
+          max_length: 32768,
+        },
+        {
+          name: 'chunk_type',
+          data_type: DataType.VarChar,
+          max_length: 32,
+        },
+        {
+          name: 'language',
+          data_type: DataType.VarChar,
+          max_length: 32,
+        },
+        {
+          name: 'start_line',
+          data_type: DataType.Int32,
+        },
+        {
+          name: 'end_line',
+          data_type: DataType.Int32,
+        },
+        {
+          name: 'chunk_index',
+          data_type: DataType.Int32,
+        },
+        {
+          name: 'star_count',
+          data_type: DataType.Int32,
+        },
+        {
+          name: 'last_commit_date',
+          data_type: DataType.VarChar,
+          max_length: 32,
+        },
+        {
+          name: 'text_hash',
+          data_type: DataType.VarChar,
+          max_length: 64,
+        },
+        {
+          name: 'token_count',
+          data_type: DataType.Int32,
+        },
+        {
+          name: 'content_length',
+          data_type: DataType.Int32,
+        },
+      ],
+    };
+
+    await this.client.createCollection(schema);
+    
+    // Create index for vector field
+    await this.client.createIndex({
+      collection_name: collectionName,
+      field_name: 'vector',
+      index_type: 'IVF_FLAT',
+      metric_type: MetricType.COSINE,
+      params: { nlist: 128 },
+    });
+
+    // Load collection
+    await this.client.loadCollection({
+      collection_name: collectionName,
+    });
+  }
+
+  /**
+   * Check if a codebase already exists in Milvus
+   */
+  async codebaseExists(repo: string): Promise<boolean> {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    try {
+      const searchParams = {
+        collection_name: 'codex7_chunks',
+        filter: `repo == "${repo}"`,
+        output_fields: ['id'],
+        limit: 1,
+      };
+
+      const results = await this.client.query(searchParams);
+      return results.data.length > 0;
+    } catch (error) {
+      logger.error(`Error checking if codebase ${repo} exists in Milvus:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Clean up specific codebase data from Milvus
+   */
+  async cleanupCodebase(repo: string): Promise<void> {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    try {
+      logger.info(`Cleaning up Milvus data for codebase: ${repo}`);
+      
+      const deleteParams = {
+        collection_name: 'codex7_chunks',
+        filter: `repo == "${repo}"`,
+      };
+
+      const result = await this.client.delete(deleteParams);
+      logger.info(`Successfully cleaned up Milvus data for codebase: ${repo}, deleted ${result.delete_cnt} records`);
+    } catch (error) {
+      logger.error(`Error cleaning up Milvus data for codebase ${repo}:`, error);
+    }
+  }
+
+  /**
+   * Get repository statistics from Milvus
+   */
+  async getRepositoryStats(repo: string): Promise<number> {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+
+    try {
+      const searchParams = {
+        collection_name: 'codex7_chunks',
+        filter: `repo == "${repo}"`,
+        output_fields: ['id'],
+        limit: 0, // Just get count
+      };
+
+      const results = await this.client.query(searchParams);
+      return results.data.length;
+    } catch (error) {
+      logger.error(`Error getting repository stats for ${repo}:`, error);
+      return 0;
+    }
   }
 } 

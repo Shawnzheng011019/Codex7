@@ -19,28 +19,56 @@ export interface GitHubRepo {
   readme?: string;
 }
 
+// Project types for local codebase
+export interface ProjectInfo {
+  name: string;
+  path: string;
+  type: string;
+  mainLanguage: string;
+  languages: string[];
+  fileCount: number;
+  totalSize: number;
+}
+
+export interface LocalProject {
+  name: string;
+  path: string;
+  project_type: string;
+  main_language: string;
+  languages: string[];
+  file_count: number;
+  total_size: number;
+}
+
 // Content extraction types
 export interface ExtractedContent {
   repo: string;
   path: string;
-  type: 'doc' | 'code';
-  language?: string;
+  type: 'readme' | 'doc' | 'wiki' | 'issue' | 'code' | 'function' | 'class' | 'config' | 'other';
+  language: string;
   content: string;
   metadata: ContentMetadata;
+  isBinary: boolean;
 }
 
 export interface ContentMetadata {
   repo: string;
   path: string;
-  language?: string;
+  language: string;
   fileSize: number;
-  lastModified: string;
+  lastModified: string | number;
   startLine?: number;
   endLine?: number;
-  starCount: number;
-  lastCommitDate: string;
-  contentType: 'readme' | 'doc' | 'wiki' | 'issue' | 'code' | 'function' | 'class';
+  starCount?: number;
+  lastCommitDate?: string;
+  contentType: 'readme' | 'doc' | 'wiki' | 'issue' | 'code' | 'function' | 'class' | 'config' | 'other';
+  projectType?: string;
+  mainLanguage?: string;
+  chunkSize?: number;
+  chunkIndex?: number;
 }
+
+
 
 // Code parsing types
 export interface CodeSymbol {
@@ -60,14 +88,15 @@ export interface TextChunk {
   id: string;
   repo: string;
   path: string;
-  chunkType: 'doc' | 'code';
+  chunkType: 'readme' | 'doc' | 'wiki' | 'issue' | 'code' | 'function' | 'class' | 'config' | 'other';
   content: string;
-  startLine?: number;
-  endLine?: number;
-  tokenCount: number;
-  language?: string;
+  startLine: number;
+  endLine: number;
+  chunkIndex: number;
+  tokenCount?: number;
+  language: string;
   metadata: ContentMetadata;
-  textHash: string;
+  textHash?: string;
 }
 
 // Embedding types
@@ -80,14 +109,16 @@ export interface EmbeddingVector {
 export interface VectorMetadata {
   repo: string;
   path: string;
-  chunkType: 'doc' | 'code';
-  language?: string;
-  startLine?: number;
-  endLine?: number;
-  starCount: number;
-  lastCommitDate: string;
-  textHash: string;
+  chunkType: 'readme' | 'doc' | 'wiki' | 'issue' | 'code' | 'function' | 'class' | 'config' | 'other';
+  language: string;
+  startLine: number;
+  endLine: number;
+  chunkIndex: number;
+  starCount?: number;
+  lastCommitDate?: string;
+  textHash?: string;
   tokenCount: number;
+  contentLength: number;
 }
 
 // Search types
@@ -123,7 +154,13 @@ export interface HybridSearchResult {
 export interface MCPTool {
   name: string;
   description: string;
-  inputSchema: {
+  // For backward compatibility we allow both `inputSchema` and the MCP spec preferred `parameters` field.
+  inputSchema?: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
+  };
+  parameters?: {
     type: 'object';
     properties: Record<string, any>;
     required?: string[];
@@ -132,6 +169,11 @@ export interface MCPTool {
 
 export interface MCPRequest {
   method: string;
+  params?: any;
+}
+
+export interface MCPToolCallRequest {
+  method: string;
   params: {
     name: string;
     arguments: Record<string, any>;
@@ -139,57 +181,86 @@ export interface MCPRequest {
 }
 
 export interface MCPResponse {
-  content: Array<{
+  // Standard content response
+  content?: Array<{
     type: 'text';
     text: string;
   }>;
   isError?: boolean;
+  
+  // MCP initialization response
+  protocolVersion?: string;
+  capabilities?: {
+    tools?: Record<string, any>;
+    [key: string]: any;
+  };
+  serverInfo?: {
+    name: string;
+    version: string;
+  };
+  
+  // Tools list response
+  tools?: MCPTool[];
+  
+  // Empty response for notifications
+  [key: string]: any;
 }
 
 // Configuration types
 export interface Config {
-  milvus: {
+  // Server configuration
+  port: number;
+  logLevel: string;
+  
+  // Database configuration
+  milvusHost: string;
+  milvusPort: number;
+  milvusDatabase: string;
+  neo4jUri: string;
+  neo4jUser: string;
+  neo4jPassword: string;
+  
+  // Local processing configuration
+  maxFileSize: number; // in MB
+  maxProjectSize: number; // in MB
+  supportedLanguages: string[];
+  
+  // Embedding configuration
+  defaultEmbeddingProvider: 'openai' | 'huggingface' | 'local';
+  defaultEmbeddingModel: string;
+  openaiApiKey?: string;
+  huggingfaceApiKey?: string;
+  
+  // Chunking configuration
+  defaultChunkSize: number;
+  defaultChunkOverlap: number;
+  
+  // Search configuration
+  maxSearchResults: number;
+  vectorWeight: number;
+  bm25Weight: number;
+  
+  // Cache and storage
+  cacheDir: string;
+  dataDir: string;
+
+  // Legacy interface structure for compatibility
+  readonly milvus: {
     host: string;
     port: number;
     user?: string;
     password?: string;
     database: string;
   };
-  openai: {
-    apiKey: string;
-    baseUrl: string;
-  };
-  huggingface: {
-    apiKey?: string;
-  };
-  github: {
-    token: string;
-  };
-  server: {
-    port: number;
-    logLevel: string;
-  };
-  data: {
-    dataDir: string;
-    reposDir: string;
-    cacheDir: string;
-  };
-  processing: {
-    maxConcurrentDownloads: number;
-    maxFileSizeMB: number;
-    chunkSize: number;
-    chunkOverlap: number;
-  };
-  models: {
-    bgeModelPath: string;
-    codeModelPath: string;
-    rerankModelPath: string;
-  };
-  neo4j: {
+  readonly neo4j: {
     uri: string;
     user: string;
     password?: string;
     database?: string;
+  };
+  readonly server: {
+    port: number;
+    logLevel: string;
   };
 }
 
