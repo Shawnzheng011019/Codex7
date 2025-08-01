@@ -11,7 +11,7 @@ from ..config import settings
 from ..scanner.local_codebase_scanner import LocalCodebaseScanner
 from ..processor.content_processor import ContentProcessor
 from ..query.milvus_client import MilvusClient
-from ..graph.neo4j_client import Neo4jClient
+from ..graph.json_graph_client import JsonGraphClient
 from ..embedding.embedding_service import EmbeddingService
 from ..search.hybrid_search import HybridSearch
 from ..search.rerank_service import GraphReranker
@@ -28,7 +28,7 @@ class CodeRetrievalMCP:
         
         # Initialize components
         self.milvus_client = None
-        self.neo4j_client = None
+        self.graph_client = None
         self.embedding_service = None
         self.hybrid_search = None
         self.graph_reranker = None
@@ -40,10 +40,10 @@ class CodeRetrievalMCP:
         """Initialize all system components."""
         try:
             self.milvus_client = MilvusClient()
-            self.neo4j_client = Neo4jClient()
+            self.graph_client = JsonGraphClient()
             self.embedding_service = EmbeddingService()
-            self.hybrid_search = HybridSearch(self.milvus_client, self.neo4j_client, self.embedding_service)
-            self.graph_reranker = GraphReranker(self.neo4j_client)
+            self.hybrid_search = HybridSearch(self.milvus_client, self.graph_client, self.embedding_service)
+            self.graph_reranker = GraphReranker(self.graph_client)
             
             self.logger.info("All components initialized successfully")
         except Exception as e:
@@ -90,15 +90,15 @@ class CodeRetrievalMCP:
                 
                 # Get statistics
                 milvus_stats = self.milvus_client.get_collection_stats()
-                neo4j_stats = self.neo4j_client.get_database_stats()
+                neo4j_stats = self.graph_client.get_database_stats()
                 
                 result = f"""
 ✅ Successfully indexed codebase:
 📁 Files processed: {len(code_files)}
 🔧 Chunks generated: {len(chunks)}
 🗄️  Milvus entities: {milvus_stats.get('num_entities', 0)}
-🕸️  Neo4j nodes: {sum(neo4j_stats.get('nodes', {}).values())}
-🔗 Neo4j relationships: {sum(neo4j_stats.get('relationships', {}).values())}
+🕸️  Graph nodes: {sum(neo4j_stats.get('nodes', {}).values())}
+🔗 Graph relationships: {sum(neo4j_stats.get('relationships', {}).values())}
 """
                 return result
                 
@@ -215,7 +215,7 @@ class CodeRetrievalMCP:
                 Function dependency graph information
             """
             try:
-                graph_result = self.neo4j_client.find_function_dependencies(function_name)
+                graph_result = self.graph_client.find_function_dependencies(function_name)
                 
                 if not graph_result.nodes:
                     return f"No dependencies found for function: {function_name}"
@@ -261,7 +261,7 @@ class CodeRetrievalMCP:
                 Class hierarchy information
             """
             try:
-                graph_result = self.neo4j_client.find_class_hierarchy(class_name)
+                graph_result = self.graph_client.find_class_hierarchy(class_name)
                 
                 if not graph_result.nodes:
                     return f"No hierarchy found for class: {class_name}"
@@ -293,7 +293,7 @@ class CodeRetrievalMCP:
             try:
                 # Convert to absolute path
                 abs_file_path = str(Path(file_path).resolve())
-                graph_result = self.neo4j_client.get_file_structure(abs_file_path)
+                graph_result = self.graph_client.get_file_structure(abs_file_path)
                 
                 if not graph_result.nodes:
                     return f"No structure found for file: {file_path}"
@@ -341,7 +341,7 @@ class CodeRetrievalMCP:
             try:
                 # Get statistics from all components
                 milvus_stats = self.milvus_client.get_collection_stats()
-                neo4j_stats = self.neo4j_client.get_database_stats()
+                neo4j_stats = self.graph_client.get_database_stats()
                 search_stats = self.hybrid_search.get_search_stats()
                 
                 formatted_stats = "📊 System Statistics\n"
@@ -353,8 +353,8 @@ class CodeRetrievalMCP:
                     formatted_stats += f"   Collection: {milvus_stats.get('collection_name', 'N/A')}\n"
                     formatted_stats += f"   Entities: {milvus_stats.get('num_entities', 0)}\n\n"
                 
-                # Neo4j stats
-                formatted_stats += "🕸️ **Neo4j Graph Database:**\n"
+                # Graph stats
+                formatted_stats += "🕸️ **Graph Graph Database:**\n"
                 if "nodes" in neo4j_stats:
                     total_nodes = sum(neo4j_stats["nodes"].values())
                     formatted_stats += f"   Total Nodes: {total_nodes}\n"
@@ -392,7 +392,7 @@ class CodeRetrievalMCP:
             try:
                 # Clear both databases
                 self.milvus_client.drop_collection()
-                self.neo4j_client.clear_database()
+                self.graph_client.clear_database()
                 
                 return "✅ Database cleared successfully\nAll data has been removed from both vector and graph databases."
                 
@@ -423,34 +423,34 @@ class CodeRetrievalMCP:
                 
                 # Get statistics before clearing
                 milvus_stats_before = self.milvus_client.get_collection_stats()
-                neo4j_stats_before = self.neo4j_client.get_database_stats()
+                graph_stats_before = self.graph_client.get_database_stats()
                 
                 # Clear data related to the specified directory
                 # For Milvus: we need to filter by file_path and delete matching entries
-                # For Neo4j: we need to delete nodes and relationships related to files in the directory
+                # For Graph: we need to delete nodes and relationships related to files in the directory
                 
                 # Clear Milvus entries for files in the directory
                 milvus_cleared = await self._clear_milvus_index(target_path)
                 
-                # Clear Neo4j entries for files in the directory
-                neo4j_cleared = await self._clear_neo4j_index(target_path)
+                # Clear Graph entries for files in the directory
+                graph_cleared = await self._clear_graph_index(target_path)
                 
                 # Get statistics after clearing
                 milvus_stats_after = self.milvus_client.get_collection_stats()
-                neo4j_stats_after = self.neo4j_client.get_database_stats()
+                graph_stats_after = self.graph_client.get_database_stats()
                 
                 result = f"""
 ✅ Successfully cleared index for directory: {target_path}
 
 📊 Clearing Statistics:
 🗄️  Milvus entries cleared: {milvus_cleared}
-🕸️  Neo4j nodes cleared: {neo4j_cleared.get('nodes', 0)}
-🕸️  Neo4j relationships cleared: {neo4j_cleared.get('relationships', 0)}
+🕸️  Graph nodes cleared: {graph_cleared.get('nodes', 0)}
+🕸️  Graph relationships cleared: {graph_cleared.get('relationships', 0)}
 
 📊 Remaining Data:
 🗄️  Milvus entities: {milvus_stats_after.get('num_entities', 0)}
-🕸️  Neo4j nodes: {sum(neo4j_stats_after.get('nodes', {}).values())}
-🕸️  Neo4j relationships: {sum(neo4j_stats_after.get('relationships', {}).values())}
+🕸️  Graph nodes: {sum(graph_stats_after.get('nodes', {}).values())}
+🕸️  Graph relationships: {sum(graph_stats_after.get('relationships', {}).values())}
 """
                 return result
                 
@@ -500,50 +500,47 @@ class CodeRetrievalMCP:
             self.logger.error(f"Error clearing Milvus index: {e}")
             return 0
     
-    async def _clear_neo4j_index(self, target_path: Path) -> Dict[str, int]:
-        """Clear Neo4j entries for files in the target directory."""
+    async def _clear_graph_index(self, target_path: Path) -> Dict[str, int]:
+        """Clear Graph entries for files in the target directory."""
         try:
-            from neo4j import GraphDatabase
-            
-            driver = GraphDatabase.driver(
-                settings.neo4j_uri,
-                auth=(settings.neo4j_username, settings.neo4j_password)
-            )
-            
             nodes_cleared = 0
             relationships_cleared = 0
             
-            with driver.session() as session:
-                # Find all nodes related to files in the target directory
-                # This assumes nodes have a 'file_path' property
-                find_nodes_query = """
-                MATCH (n)
-                WHERE n.file_path STARTS WITH $target_path
-                RETURN n
-                """
-                
-                result = session.run(find_nodes_query, target_path=str(target_path))
-                nodes = list(result)
-                
-                if nodes:
-                    # Delete all nodes and their relationships
-                    delete_query = """
-                    MATCH (n)
-                    WHERE n.file_path STARTS WITH $target_path
-                    DETACH DELETE n
-                    """
-                    
-                    result = session.run(delete_query, target_path=str(target_path))
-                    summary = result.consume()
-                    
-                    nodes_cleared = summary.counters.nodes_deleted
-                    relationships_cleared = summary.counters.relationships_deleted
-                    
-                    self.logger.info(f"Cleared {nodes_cleared} nodes and {relationships_cleared} relationships from Neo4j")
-                else:
-                    self.logger.info("No matching nodes found in Neo4j")
+            # Get all graph data
+            graph_data = self.graph_client.get_graph_data()
             
-            driver.close()
+            # Find nodes and edges related to files in the target directory
+            nodes_to_delete = []
+            edges_to_delete = []
+            
+            for node in graph_data["nodes"]:
+                if "file_path" in node and node["file_path"].startswith(str(target_path)):
+                    nodes_to_delete.append(node["id"])
+            
+            for edge in graph_data["edges"]:
+                if edge["source_id"] in nodes_to_delete or edge["target_id"] in nodes_to_delete:
+                    edges_to_delete.append(edge)
+            
+            # Delete nodes and edges from JSON graph
+            if nodes_to_delete:
+                # Remove edges first
+                for edge in edges_to_delete:
+                    if edge in graph_data["edges"]:
+                        graph_data["edges"].remove(edge)
+                        relationships_cleared += 1
+                
+                # Remove nodes
+                for node in graph_data["nodes"]:
+                    if node["id"] in nodes_to_delete:
+                        graph_data["nodes"].remove(node)
+                        nodes_cleared += 1
+                
+                # Save the updated graph data
+                self.graph_client._save_graph_data(graph_data)
+                
+                self.logger.info(f"Cleared {nodes_cleared} nodes and {relationships_cleared} relationships from Graph")
+            else:
+                self.logger.info("No matching nodes found in Graph")
             
             return {
                 "nodes": nodes_cleared,
@@ -551,7 +548,7 @@ class CodeRetrievalMCP:
             }
             
         except Exception as e:
-            self.logger.error(f"Error clearing Neo4j index: {e}")
+            self.logger.error(f"Error clearing Graph index: {e}")
             return {"nodes": 0, "relationships": 0}
     
     def _build_class_hierarchy(self, graph_result, parent_id=None, level=0):

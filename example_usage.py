@@ -20,7 +20,7 @@ os.environ.setdefault('MCP_PORT', '8000')
 from src.scanner.local_codebase_scanner import LocalCodebaseScanner
 from src.processor.content_processor import ContentProcessor
 from src.query.milvus_client import MilvusClient
-from src.graph.neo4j_client import Neo4jClient
+from src.graph.json_graph_client import JsonGraphClient
 from src.embedding.embedding_service import EmbeddingService
 from src.search.hybrid_search import HybridSearch
 from src.search.rerank_service import GraphReranker
@@ -38,7 +38,7 @@ class CodeRetrievalDemo:
         self.scanner = None
         self.processor = None
         self.milvus_client = None
-        self.neo4j_client = None
+        self.graph_client = None
         self.embedding_service = None
         self.hybrid_search = None
         self.graph_reranker = None
@@ -55,10 +55,10 @@ class CodeRetrievalDemo:
             
             # Initialize core components
             self.milvus_client = MilvusClient()
-            self.neo4j_client = Neo4jClient()
+            self.graph_client = JsonGraphClient()
             self.embedding_service = EmbeddingService()
-            self.hybrid_search = HybridSearch(self.milvus_client, self.neo4j_client, self.embedding_service)
-            self.graph_reranker = GraphReranker(self.neo4j_client)
+            self.hybrid_search = HybridSearch(self.milvus_client, self.graph_client, self.embedding_service)
+            self.graph_reranker = GraphReranker(self.graph_client)
             
             self.logger.info("✅ All components initialized successfully")
             
@@ -73,16 +73,16 @@ class CodeRetrievalDemo:
             print("-" * 30)
             
             milvus_stats = self.milvus_client.get_collection_stats()
-            neo4j_stats = self.neo4j_client.get_database_stats()
+            graph_stats = self.graph_client.get_database_stats()
             
             if "error" not in milvus_stats:
                 print(f"🗄️  Milvus entities: {milvus_stats.get('num_entities', 0)}")
             
-            if "nodes" in neo4j_stats:
-                total_nodes = sum(neo4j_stats["nodes"].values())
-                total_rels = sum(neo4j_stats["relationships"].values())
-                print(f"🕸️  Neo4j nodes: {total_nodes}")
-                print(f"🕸️  Neo4j relationships: {total_rels}")
+            if "nodes" in graph_stats:
+                total_nodes = sum(graph_stats["nodes"].values())
+                total_rels = sum(graph_stats["relationships"].values())
+                print(f"🕸️  Graph nodes: {total_nodes}")
+                print(f"🕸️  Graph relationships: {total_rels}")
             
         except Exception as e:
             self.logger.error(f"Error getting initial stats: {e}")
@@ -155,17 +155,17 @@ class CodeRetrievalDemo:
             
             # Get updated statistics
             milvus_stats = self.milvus_client.get_collection_stats()
-            neo4j_stats = self.neo4j_client.get_database_stats()
+            graph_stats = self.graph_client.get_database_stats()
             
             print(f"\n📊 Updated Statistics:")
             if "error" not in milvus_stats:
                 print(f"🗄️  Milvus entities: {milvus_stats.get('num_entities', 0)}")
             
-            if "nodes" in neo4j_stats:
-                total_nodes = sum(neo4j_stats["nodes"].values())
-                total_rels = sum(neo4j_stats["relationships"].values())
-                print(f"🕸️  Neo4j nodes: {total_nodes}")
-                print(f"🕸️  Neo4j relationships: {total_rels}")
+            if "nodes" in graph_stats:
+                total_nodes = sum(graph_stats["nodes"].values())
+                total_rels = sum(graph_stats["relationships"].values())
+                print(f"🕸️  Graph nodes: {total_nodes}")
+                print(f"🕸️  Graph relationships: {total_rels}")
             
         except Exception as e:
             self.logger.error(f"Error indexing chunks: {e}")
@@ -261,7 +261,7 @@ class CodeRetrievalDemo:
                 sample_file = self.indexed_chunks[0].file_path
                 print(f"📁 Getting structure for Python file: {sample_file}")
                 
-                graph_result = self.neo4j_client.get_file_structure(sample_file)
+                graph_result = self.graph_client.get_file_structure(sample_file)
                 
                 if graph_result.nodes:
                     print(f"✅ Found {len(graph_result.nodes)} nodes:")
@@ -296,11 +296,11 @@ class CodeRetrievalDemo:
             
             # Get final stats before cleanup
             milvus_stats_before = self.milvus_client.get_collection_stats()
-            neo4j_stats_before = self.neo4j_client.get_database_stats()
+            graph_stats_before = self.graph_client.get_database_stats()
             
             # Clear databases
             self.milvus_client.drop_collection()
-            self.neo4j_client.clear_database()
+            self.graph_client.clear_database()
             
             print("✅ Database entries cleared")
             
@@ -309,11 +309,11 @@ class CodeRetrievalDemo:
             if "error" not in milvus_stats_before:
                 print(f"🗄️  Milvus entries removed: {milvus_stats_before.get('num_entities', 0)}")
             
-            if "nodes" in neo4j_stats_before:
-                total_nodes = sum(neo4j_stats_before["nodes"].values())
-                total_rels = sum(neo4j_stats_before["relationships"].values())
-                print(f"🕸️  Neo4j nodes removed: {total_nodes}")
-                print(f"🕸️  Neo4j relationships removed: {total_rels}")
+            if "nodes" in graph_stats_before:
+                total_nodes = sum(graph_stats_before["nodes"].values())
+                total_rels = sum(graph_stats_before["relationships"].values())
+                print(f"🕸️  Graph nodes removed: {total_nodes}")
+                print(f"🕸️  Graph relationships removed: {total_rels}")
             
             print(f"📝 Chunks processed: {len(self.indexed_chunks)}")
             print(f"🔍 Searches performed: {len(self.search_results)}")
@@ -365,10 +365,10 @@ class CodeRetrievalDemo:
         finally:
             # Ensure cleanup even if demo fails
             try:
-                if self.milvus_client and self.neo4j_client:
+                if self.milvus_client and self.graph_client:
                     print(f"\n🧹 Final cleanup...")
                     self.milvus_client.drop_collection()
-                    self.neo4j_client.clear_database()
+                    self.graph_client.clear_database()
                     print("✅ Resources cleaned up")
             except Exception as cleanup_error:
                 print(f"⚠️  Cleanup error: {cleanup_error}")

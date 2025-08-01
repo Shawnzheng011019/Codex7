@@ -17,7 +17,6 @@ class TestRequirements:
     def test_core_dependencies(self):
         """Test that core dependencies can be imported."""
         required_modules = [
-            'neo4j',
             'pymilvus', 
             'numpy',
             'pandas',
@@ -98,21 +97,17 @@ class TestRequirements:
         """Test database connection configuration."""
         import os
         
-        # Check Neo4j configuration
-        neo4j_uri = os.getenv('NEO4J_URI', 'bolt://localhost:7687')
-        neo4j_user = os.getenv('NEO4J_USERNAME', 'neo4j')
-        neo4j_pass = os.getenv('NEO4J_PASSWORD', 'password')
-        
-        print(f"Neo4j config: {neo4j_uri} (user: {neo4j_user})")
-        
         # Check Milvus configuration  
         milvus_host = os.getenv('MILVUS_HOST', 'localhost')
         milvus_port = os.getenv('MILVUS_PORT', '19530')
         
         print(f"Milvus config: {milvus_host}:{milvus_port}")
         
+        # Check Graph storage configuration
+        graph_storage_path = os.getenv('GRAPH_STORAGE_PATH', 'graph_data.json')
+        print(f"Graph storage: {graph_storage_path}")
+        
         # This test just reports configuration, doesn't test actual connections
-        assert neo4j_uri is not None
         assert milvus_host is not None
     
     def test_environment_setup(self):
@@ -130,10 +125,8 @@ class TestRequirements:
         # Check critical environment variables
         critical_vars = [
             'OPENAI_API_KEY',
-            'NEO4J_URI', 
-            'NEO4J_USERNAME',
-            'NEO4J_PASSWORD',
-            'MILVUS_HOST'
+            'MILVUS_HOST',
+            'GRAPH_STORAGE_PATH'
         ]
         
         set_vars = []

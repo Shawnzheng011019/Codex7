@@ -138,10 +138,10 @@ class BM25Search:
 class HybridSearch:
     """Hybrid search combining vector similarity and BM25."""
     
-    def __init__(self, milvus_client, neo4j_client, embedding_service):
+    def __init__(self, milvus_client, graph_client, embedding_service):
         self.logger = app_logger.bind(component="hybrid_search")
         self.milvus_client = milvus_client
-        self.neo4j_client = neo4j_client
+        self.graph_client = graph_client
         self.embedding_service = embedding_service
         self.bm25_search = BM25Search()
         self.chunk_cache = {}  # Cache for chunk data
@@ -162,7 +162,7 @@ class HybridSearch:
         # Index for BM25
         self.bm25_search.index_chunks(chunks)
         
-        # Create graph nodes and relationships in Neo4j
+        # Create graph nodes and relationships in JSON graph
         await self._create_graph_data(chunks)
         
         # Cache chunks for quick retrieval
@@ -318,7 +318,7 @@ class HybridSearch:
         try:
             for result in results:
                 # Find related chunks in graph
-                graph_result = self.neo4j_client.find_related_chunks(
+                graph_result = self.graph_client.find_related_chunks(
                     result.chunk.id, 
                     relationship_types=["CALLS", "DEFINED_IN", "CONTAINS"],
                     max_hops=2
@@ -391,7 +391,7 @@ class HybridSearch:
             return []
     
     async def _create_graph_data(self, chunks: List[CodeChunk]):
-        """Create graph nodes and relationships in Neo4j."""
+        """Create graph nodes and relationships in JSON graph."""
         try:
             self.logger.info(f"Creating graph data for {len(chunks)} chunks")
             
@@ -417,7 +417,7 @@ class HybridSearch:
                     file_size = metadata.get('file_size', 0)
                     
                     # Create file node with flattened metadata
-                    file_node = self.neo4j_client.create_file_node(
+                    file_node = self.graph_client.create_file_node(
                         file_path=file_path,
                         language=file_data['language'] or 'unknown',
                         file_type=self._determine_file_type(file_path),
@@ -430,11 +430,11 @@ class HybridSearch:
                     for chunk in file_data['chunks']:
                         try:
                             # Create chunk node
-                            chunk_node = self.neo4j_client.create_chunk_node(chunk)
+                            chunk_node = self.graph_client.create_chunk_node(chunk)
                             created_nodes += 1
                             
                             # Create file-chunk relationship
-                            file_chunk_rel = self.neo4j_client.create_file_chunk_relationship(
+                            file_chunk_rel = self.graph_client.create_file_chunk_relationship(
                                 file_path, chunk.id
                             )
                             created_relationships += 1
@@ -488,7 +488,7 @@ class HybridSearch:
             # Create function nodes
             for func_info in functions:
                 try:
-                    func_node = self.neo4j_client.create_function_node(
+                    func_node = self.graph_client.create_function_node(
                         name=func_info['name'],
                         qualified_name=f"{chunk.file_path}::{func_info['name']}",
                         file_path=chunk.file_path,
@@ -497,7 +497,7 @@ class HybridSearch:
                     )
                     
                     # Create function-chunk relationship
-                    self.neo4j_client.create_function_chunk_relationship(
+                    self.graph_client.create_function_chunk_relationship(
                         f"{chunk.file_path}::{func_info['name']}", chunk.id
                     )
                     created_entities += 1
@@ -508,7 +508,7 @@ class HybridSearch:
             # Create class nodes
             for class_info in classes:
                 try:
-                    class_node = self.neo4j_client.create_class_node(
+                    class_node = self.graph_client.create_class_node(
                         name=class_info['name'],
                         qualified_name=f"{chunk.file_path}::{class_info['name']}",
                         file_path=chunk.file_path,
@@ -517,7 +517,7 @@ class HybridSearch:
                     )
                     
                     # Create class-chunk relationship
-                    self.neo4j_client.create_class_chunk_relationship(
+                    self.graph_client.create_class_chunk_relationship(
                         f"{chunk.file_path}::{class_info['name']}", chunk.id
                     )
                     created_entities += 1

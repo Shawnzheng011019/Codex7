@@ -14,9 +14,8 @@ class Settings(BaseSettings):
     milvus_collection_name: str = Field(default="code_chunks", env="MILVUS_COLLECTION_NAME")
     milvus_dimension: int = Field(default=1536, env="MILVUS_DIMENSION")
     
-    neo4j_uri: str = Field(default="bolt://localhost:7687", env="NEO4J_URI")
-    neo4j_username: str = Field(default="neo4j", env="NEO4J_USERNAME")
-    neo4j_password: str = Field(default="neo4j", env="NEO4J_PASSWORD")
+    # Graph storage configuration
+    graph_storage_path: str = Field(default="graph_data.json", env="GRAPH_STORAGE_PATH")
     
     # Embedding Service Configuration
     embedding_provider: str = Field(default="openai", env="EMBEDDING_PROVIDER")
